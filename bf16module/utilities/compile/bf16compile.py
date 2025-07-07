@@ -86,25 +86,22 @@ class BF16compile:
             return version == 2 
     
     def write_bin_v2(self, filename: str, color_mode: str="rgb332", app_name: str="UNNAMED BF16"):
-        with open(filename, 'wb') as out:
+        with open(filename, 'wb') as f:
             # Write header
-            out.write(b'BF16')  # Magic number
-            out.write(struct.pack('<B', 2))  # Version (e.g., 2 for this new format)
+            f.write(b'BF16')  # Magic number
+            f.write(struct.pack('<B', 2))  # Version (e.g., 2 for this new format)
 
             # Write metadata lengths
-            out.write(struct.pack('<B', len(color_mode)))
-            out.write(struct.pack('<B', len(app_name)))
+            f.write(struct.pack('<B', len(color_mode)))
+            f.write(struct.pack('<B', len(app_name)))
 
             # Write metadata
-            out.write(color_mode.encode('utf-8'))
-            out.write(app_name.encode('utf-8'))
+            f.write(color_mode.encode('utf-8'))
+            f.write(app_name.encode('utf-8'))
 
             # Write program
-            for idx in range(0, self.program_size, 2):
-                opcode = self.program[idx]
-                arg = self.program[idx + 1]
-                out.write(struct.pack('B', opcode))
-                out.write(struct.pack('<H', arg))
+            for i in range(0, self.program_size, 2):
+                f.write(struct.pack('<BH', self.program[i], self.program[i + 1]))
                 
     def read_bin_v2(self, filename: str) -> tuple[list[int], str, str]:
         self.program = []
@@ -126,6 +123,21 @@ class BF16compile:
 
             color_mode = f.read(color_mode_len).decode('utf-8')
             app_name = f.read(app_name_len).decode('utf-8')
+
+            # For backup
+            
+            # while True:
+            #     opcode_byte = f.read(1)
+            #     if not opcode_byte:
+            #         break
+            #     opcode = struct.unpack('B', opcode_byte)[0]
+            #     arg_bytes = f.read(2)
+            #     if not arg_bytes:
+            #         break
+            #     arg = struct.unpack('<H', arg_bytes)[0]
+            #     self.program.append(opcode)
+            #     self.program.append(arg)
+            #     self.program_size += 2
 
             while True:
                 opcode_byte = f.read(1)

@@ -88,7 +88,6 @@ class BF16Runtime:
             elif cmd == ord('.'):
                 self.cursor += 1
                 for i, j in product(range(16), repeat=2):
-
                     val = self.memory[i * 16 + j]
                     graphic_engine.draw_box(x=j * PIXEL_SCALE, y=i * PIXEL_SCALE, width=PIXEL_SCALE, height=PIXEL_SCALE, color=color(val))
                     self.display_image[i][j] = val
@@ -109,14 +108,14 @@ class BF16Runtime:
 
     def run_program_threaded(self, screen: pygame.Surface, color: Callable[[int], tuple[int, int, int]]):
         """Run the program in a thread and update audio if needed."""
-        thread = threading.Thread(target=self.run_program, args=(screen, color))
+        thread = threading.Thread(target=self.run_program, args=(screen, color), daemon=True)
         thread.start()
-        thread.join()
+        thread.join() # Wait for the program to finish its current instruction
 
         new_value = self.memory[self.address]
         if new_value != self.current_note:
             self.current_note = new_value
-            BF16audio.play_bass_note(self.current_note)
+            BF16audio.play_note(self.current_note)
 
     def draw_fps(self, screen: pygame.Surface, clock: pygame.time.Clock):
         """Draw the current FPS on screen."""
