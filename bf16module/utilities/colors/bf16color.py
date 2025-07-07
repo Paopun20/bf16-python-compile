@@ -18,7 +18,7 @@ class BF16color:
         pastel(val): Maps a value to pastel RGB colors.
         neon(val): Maps a value to neon RGB colors.
         thermal(val): Maps a value to thermal-like (blue to red) colors.
-        circuit(val): Maps a value to a binary on/off color for circuit-like display.
+        circuit(val): TBS (the broken script) Circuit Texture LOL
     """
     @staticmethod
     def rgb332(val):
@@ -253,7 +253,7 @@ class BF16color:
     def circuit(val):
         """ TBS (the broken script) Circuit Texture LOL
         Args:
-            val (int): The input value (0-255) to map to a circuit spaghetti? wire?.
+            val (int): The input value (0-255) to map to a circuit spaghetti? wire? IDK.
         Returns:
             tuple: (255, 255, 255) if val >= 3, else (0, 0, 0).
         """
