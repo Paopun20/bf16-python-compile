@@ -28,7 +28,7 @@ Convert `.b` source to `.bf16c` bytecode:
 compile v1:
     python .\bf16.py compile .\examples\badapple.b
 
-compile v2 (experimental):
+compile v2 (experimental, undone code and it can be corrupted file in the future):
     python .\bf16.py compile .\examples\badapple.b --use_v2_compile --color grayscale --appname "Bad Apple"
 
 ----------------------------------------
@@ -37,4 +37,4 @@ compile v2 (experimental):
 
 .b = raw Brainfuck source  
 .bf16c = compiled bytecode (v1/v2 supported)  
-Supports color modes, event hooks, and audio output
+Supports color modes, event hooks (in code), and audio output

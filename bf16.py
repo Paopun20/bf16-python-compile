@@ -1,5 +1,6 @@
 import os; os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1" # Bye
 import sys, pygame, argparse, time
+import textwrap
 
 # rich
 from rich.console import Console
@@ -8,10 +9,11 @@ from rich.pretty import install as pretty_install
 from rich.panel import Panel
 from rich.status import Status
 from rich.live import Live
+from rich.table import Table
 from rich import box
 
 # add-on rich
-from rich_argparse import RichHelpFormatter
+from bf16module.utilities.CoolCustomRichFormatter import CoolCustomRichFormatter
 
 # bf16 core (don't remove)
 from bf16module.utilities.colors.bf16color import BF16color
@@ -53,27 +55,43 @@ def main():
     """
     parser = argparse.ArgumentParser(
         prog="bf16",
-        description="""BF16 Interpreter and Compiler: Visual Brainfuck game runtime""",
-        epilog="Examples:\n"
-               "  bf16 compile game.b\n"
-               "  bf16 run game.b --color rgb332 --showfps\n"
-               "  bf16 run demo.bf16c --color grayscale",
-        formatter_class=RichHelpFormatter
+        description="""
+        [bold blue]🧠 BF16 Interpreter & Compiler:[/]
+
+        A visual [bold]Brainfuck-16[/] runtime that supports real-time graphics, sound, and input.
+        Supports compiling `.b` to `.bf16c` with metadata, color mode, and other features.
+        """,
+        formatter_class=CoolCustomRichFormatter
     )
-    parser.add_argument("--debug", action="store_true", help="Enable debug output")
-    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    compile_parser = subparsers.add_parser("compile", help="Compile a .b source file to .bf16c")
-    compile_parser.add_argument("filename")
-    compile_parser.add_argument("--use_v2_compile", action="store_true")
-    compile_parser.add_argument("--color", default="rgb332")
-    compile_parser.add_argument("--appname", default="UNNAMED BF16")
-    compile_parser.add_argument("-o", "--output", help="Output filename (default: auto .bf16c)")
+    # Global args
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging and memory monitoring [bold underline red](Don't use, it not fully working yet. It's a work in progress!)[/]")
 
-    run_parser = subparsers.add_parser("run", help="Run a .b or .bf16c program")
-    run_parser.add_argument("filename")
-    run_parser.add_argument("--color", default="rgb332")
-    run_parser.add_argument("--showfps", action="store_true")
+    subparsers = parser.add_subparsers(title="Available Commands", dest="command", metavar="<command>", required=True)
+
+    # Compile command
+    compile_parser = subparsers.add_parser(
+        "compile",
+        help="Compile .b source code to .bf16c binary",
+        formatter_class=CoolCustomRichFormatter
+    )
+    compile_parser.add_argument("filename", help="Input .b file to compile")
+    compile_parser.add_argument("--use_v2_compile", action="store_true", help="Use v2 binary format with metadata")
+    compile_parser.add_argument("--color", default="rgb332", help="Color mode (default: rgb332)")
+    compile_parser.add_argument("--appname", default="UNNAMED BF16", help="Application name for metadata")
+    compile_parser.add_argument("-o", "--output", help="Output filename (.bf16c)")
+
+    # Run command
+    run_parser = subparsers.add_parser(
+        "run",
+        help="Run a .b or .bf16c program visually",
+        formatter_class=CoolCustomRichFormatter
+    )
+    run_parser.add_argument("filename", help="Program file (.b or .bf16c)")
+    run_parser.add_argument("--color", default="rgb332", help="Color mode (default: rgb332)")
+    run_parser.add_argument("--showfps", action="store_true", help="Show FPS counter on screen")
+
+    if len(sys.argv) == 1 or sys.argv[1] in ["-h", "--help"]: return parser.print_help()
 
     with Status("Initializing BF16...", console=console, spinner="material"):
         console.clear()
@@ -210,7 +228,7 @@ def main():
 
                 time.sleep(0) # but why
                 console.print("Successfully setup debug")
-    
+
         console.print("[green]" + "="*80 + "[/]")
 
         runtime.reset()
@@ -227,8 +245,7 @@ def main():
             runtime.emit_event("tick")
             runtime.run_program_threaded(screen, color=color)
 
-            if args.showfps:
-                runtime.draw_fps(screen, clock)
+            runtime.draw_fps(screen, clock) if args.showfps else None
 
             runtime.graphic_engine.update()
             clock.tick(60)
@@ -236,14 +253,4 @@ def main():
         pygame.quit()
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        console.print("\n[bold yellow]👋 Program interrupted by user.[/]")
-        sys.exit(0)
-    except pygame.error as e:
-        console.print(f"[bold red]💥 Pygame error:[/] {e}")
-        sys.exit(1)
-    except Exception as e:
-        console.print(f"[bold red]💥 An unexpected error occurred:[/] {e}")
-        sys.exit(1)
+    main()

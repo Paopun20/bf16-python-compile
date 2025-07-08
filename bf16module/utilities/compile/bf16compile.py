@@ -50,6 +50,22 @@ class BF16compile:
             print('Error: unmatched [ at', bracket_stack)
 
         return self.program
+    
+    def _ReadBin(self, file):
+        program = []
+        while True:
+            opcode_byte = file.read(1)
+            if not opcode_byte:
+                break
+            opcode = struct.unpack('B', opcode_byte)[0]
+            arg_bytes = file.read(2)
+            if not arg_bytes:
+                break
+            arg = struct.unpack('<H', arg_bytes)[0]
+            program.append(opcode)
+            program.append(arg)
+            program_size += 2
+        return program
 
     def write_bin(self, filename: str):
         with open(filename, 'wb') as out:
@@ -60,21 +76,8 @@ class BF16compile:
                 out.write(struct.pack('<H', arg))
 
     def read_bin(self, filename: str):
-        self.program = []
         self.program_size = 0
-        with open(filename, 'rb') as f:
-            while True:
-                opcode_byte = f.read(1)
-                if not opcode_byte:
-                    break
-                opcode = struct.unpack('B', opcode_byte)[0]
-                arg_bytes = f.read(2)
-                if not arg_bytes:
-                    break
-                arg = struct.unpack('<H', arg_bytes)[0]
-                self.program.append(opcode)
-                self.program.append(arg)
-                self.program_size += 2
+        self.program = self._ReadBin(open(filename, 'rb'))
         return self.program
     
     def is_v2_bin(self, filename: str) -> bool:
@@ -138,17 +141,5 @@ class BF16compile:
             #     self.program.append(opcode)
             #     self.program.append(arg)
             #     self.program_size += 2
-
-            while True:
-                opcode_byte = f.read(1)
-                if not opcode_byte:
-                    break
-                opcode = struct.unpack('B', opcode_byte)[0]
-                arg_bytes = f.read(2)
-                if not arg_bytes:
-                    break
-                arg = struct.unpack('<H', arg_bytes)[0]
-                self.program.append(opcode)
-                self.program.append(arg)
-                self.program_size += 2
+            self.program = self._ReadBin(f)
         return self.program, color_mode, app_name

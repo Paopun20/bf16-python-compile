@@ -3,3 +3,4 @@ rich
 numpy
 argparse
 scipy
+typer[all]
