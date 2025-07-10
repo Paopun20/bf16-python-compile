@@ -213,18 +213,20 @@ def main():
                 }, indent=4)
 
             with Status("Setting up Debugger...", console=console, spinner="material"):
-                runtime.register_event("tick", on_tick_hook)
-                # runtime.register_event("debug.instruction", lambda msg: debugger_server.send_data_to_client(data_format("instruction", msg)))
-                # runtime.register_event("debug.pointer", lambda msg: debugger_server.send_data_to_client(data_format("pointer", msg)))
-                # runtime.register_event("debug.memory", lambda msg: debugger_server.send_data_to_client(data_format("memory", msg)))
-                # runtime.register_event("debug.jump", lambda msg: debugger_server.send_data_to_client(data_format("jump", msg)))
-                # runtime.register_event("debug.render", lambda msg: debugger_server.send_data_to_client(data_format("render", msg)))
-                # runtime.register_event("debug.input", lambda msg: debugger_server.send_data_to_client(data_format("input", msg)))
                 console.print("[green]🐛 Debugger fully initialized[/]")
+                console.print("Wait For Client For 10 Seconds...")
                 if debugger_server:
                     if not debugger_server.wait_for_client(timeout=10):
                         console.print("[bold red]❌ Debugger client did not connect in time. Exiting.[/]")
                         return
+                    else:
+                        runtime.register_event("tick", on_tick_hook)
+                        runtime.register_event("debug.instruction", lambda msg: debugger_server.send_data_to_client(data_format("instruction", msg)))
+                        runtime.register_event("debug.pointer", lambda msg: debugger_server.send_data_to_client(data_format("pointer", msg)))
+                        runtime.register_event("debug.memory", lambda msg: debugger_server.send_data_to_client(data_format("memory", msg)))
+                        runtime.register_event("debug.jump", lambda msg: debugger_server.send_data_to_client(data_format("jump", msg)))
+                        runtime.register_event("debug.render", lambda msg: debugger_server.send_data_to_client(data_format("render", msg)))
+                        runtime.register_event("debug.input", lambda msg: debugger_server.send_data_to_client(data_format("input", msg)))
 
         console.print("[green]" + "="*80 + "[/]")
 

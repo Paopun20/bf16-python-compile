@@ -41,7 +41,8 @@ class BF16Server:
         if connected:
             print("[BF16Server] Client is ready.")
         else:
-            print("[BF16Server] Wait for client timed out.")
+            print("[BF16Server] Client did not connect in time.")
+            raise RuntimeError("Debugger client did not connect in time.")
         return connected
 
     def handle_client(self, conn):
