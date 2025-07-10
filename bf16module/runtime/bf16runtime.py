@@ -42,10 +42,7 @@ class BF16Runtime:
         def run_hooks():
             for hook in self.hook_event:
                 if event_name in hook:
-                    try:
-                        threading.Thread(target=run_hooks).start()
-                    except Exception as e:
-                        print(f"[event error] {event_name}: {e}")
+                    hook[event_name](*args, **kwargs)
 
         run_hooks()
         # it delay

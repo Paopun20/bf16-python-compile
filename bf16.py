@@ -1,5 +1,5 @@
-import os; os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1" # Bye
-import sys, pygame, argparse, time
+import os; os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
+import sys, pygame, argparse, time, threading, json
 import textwrap
 
 # rich
@@ -8,7 +8,6 @@ from rich.traceback import install as rich_traceback_install
 from rich.pretty import install as pretty_install
 from rich.panel import Panel
 from rich.status import Status
-from rich.live import Live
 from rich.table import Table
 from rich import box
 
@@ -27,32 +26,9 @@ console = Console()
 
 WINDOW_SIZE = 512
 PROGRAM_END = False
+debugger_server = None  # Global debugger server object
 
 def main():
-    """
-    Main entry point for the BF16 Interpreter and Compiler command-line interface.
-    This function sets up the argument parser, handles subcommands for compiling and running Brainfuck-based games,
-    and manages runtime events and hooks. It supports debug mode, color modes, and displays runtime information.
-    The function also initializes Pygame for graphical output when running programs.
-    Subcommands:
-        - compile: Compiles a .b source file to a .bf16c binary, with options for color mode, app name, and output file.
-        - run: Runs a .b or .bf16c program, with options for color mode and FPS display.
-    Arguments:
-        --debug: Enables debug output.
-        --color: Sets the color mode (default: rgb332).
-        --showfps: Displays frames per second (run mode only).
-        --use_v2_compile: Uses the v2 binary format for compilation (compile mode only).
-        --appname: Sets the application name for the binary (compile mode only).
-        -o, --output: Specifies the output filename for the compiled binary (compile mode only).
-    Raises:
-        FileNotFoundError: If the specified input file does not exist.
-        ValueError: If an unsupported file type is provided.
-        Exception: For errors during compilation or loading.
-    Side Effects:
-        - Prints status and error messages to the console.
-        - Initializes and manages a Pygame window for graphical output.
-        - Registers and emits runtime events for program execution.
-    """
     parser = argparse.ArgumentParser(
         prog="bf16",
         description="""
@@ -64,12 +40,10 @@ def main():
         formatter_class=CoolCustomRichFormatter
     )
 
-    # Global args
     parser.add_argument("--debug", action="store_true", help="Enable debug logging and memory monitoring [bold underline red](Don't use, it not fully working yet. It's a work in progress!)[/]")
 
     subparsers = parser.add_subparsers(title="Available Commands", dest="command", metavar="<command>", required=True)
 
-    # Compile command
     compile_parser = subparsers.add_parser(
         "compile",
         help="Compile .b source code to .bf16c binary",
@@ -81,7 +55,6 @@ def main():
     compile_parser.add_argument("--appname", default="UNNAMED BF16", help="Application name for metadata")
     compile_parser.add_argument("-o", "--output", help="Output filename (.bf16c)")
 
-    # Run command
     run_parser = subparsers.add_parser(
         "run",
         help="Run a .b or .bf16c program visually",
@@ -91,7 +64,8 @@ def main():
     run_parser.add_argument("--color", default="rgb332", help="Color mode (default: rgb332)")
     run_parser.add_argument("--showfps", action="store_true", help="Show FPS counter on screen")
 
-    if len(sys.argv) == 1 or sys.argv[1] in ["-h", "--help"]: return parser.print_help()
+    if len(sys.argv) == 1 or sys.argv[1] in ["-h", "--help"]:
+        return parser.print_help()
 
     with Status("Initializing BF16...", console=console, spinner="material"):
         console.clear()
@@ -99,22 +73,24 @@ def main():
         args = parser.parse_args()
 
         if args.debug:
+            global debugger_server
             console.print("[bold blue]🛠 Debug mode enabled[/]")
             import logging
             logging.basicConfig(level=logging.DEBUG)
+            from bf16module.utilities.debugger.debugger import BF16Server
+            debugger_server = BF16Server("127.0.0.1", 5000)
+            threading.Thread(target=debugger_server.start, daemon=True).start()
 
         compiler = BF16compile()
         runtime = BF16Runtime()
-        time.sleep(0) # but why
         console.print("[green]✔ BF16 initialized[/]")
 
     with Status("Checking file, What I Got", console=console, spinner="material"):
         if not os.path.isfile(args.filename):
             console.print(f"[bold red]❌ File not found:[/] {args.filename}")
             return
-        time.sleep(0) # but why
         console.print("[green]✔ File check done[/]")
-    
+
     if args.command == "compile":
         with Status("Compiling...", console=console, spinner="material"):
             if not args.filename.endswith(".b"):
@@ -139,8 +115,7 @@ def main():
     if args.command == "run":
         try:
             color = getattr(BF16color, args.color.lower())
-            if not callable(color):
-                raise AttributeError
+            if not callable(color): raise AttributeError
         except AttributeError:
             available = [m for m in dir(BF16color) if not m.startswith("_")]
             console.print(f"[bold red]❌ Unknown color mode:[/] {args.color}")
@@ -157,19 +132,13 @@ def main():
             text_surface = font.render("Loading...", True, (255, 255, 255))
             screen.blit(text_surface, text_surface.get_rect(center=(WINDOW_SIZE//2, WINDOW_SIZE//2)))
             pygame.display.flip()
-            
-            time.sleep(0) # but why
 
             console.print("[green]✔ Pygame initialized[/]")
-        
+
         with Status("Get Detail File, What I Got", console=console, spinner="material"):
             filename = args.filename
             ext = filename.lower()
-            text_load = ""
-            if ext.endswith((".b", ".bf16")):
-                text_load = "Compiling source"
-            elif ext.endswith((".bin", ".bf16c")):
-                text_load = "Loading binary"
+            text_load = "Compiling source" if ext.endswith((".b", ".bf16")) else "Loading binary"
 
         with Status(text_load, console=console, spinner="material"):
             try:
@@ -201,33 +170,61 @@ def main():
             except Exception as e:
                 console.print(Panel(str(e), title="💥 Load Error", style="red"))
                 return
-        
+            
+        def render_data(data):
+            out = []
+            for row in data:
+                out_row = []
+                for val in row:
+                    out_row.append(int(val))
+                out.append(out_row)
+            return out
+
         def on_tick_hook():
-            tol_memory = sum(x for x in runtime.memory) / 1024 / 1024 if hasattr(runtime, "memory") else 0
-            console.log(f"[dim]Tick {runtime.tick} | memory usage: {tol_memory:.2f} MB[/]")
+            memory_mb = len(runtime.memory) * sys.getsizeof(int()) / 1024 / 1024
+            console.log(f"[dim]Tick {runtime.tick} | memory usage: {memory_mb:.2f} MB[/]")
+            if debugger_server:
+                debugger_server.send_data_to_client(json.dumps({
+                    "ID": f"render_{runtime.tick}",
+                    "name": "render",
+                    "data": render_data(runtime.display_image)
+                }))
 
         def on_program_end_hook():
             global PROGRAM_END
             PROGRAM_END = True
             console.log(f"[bold green]✅ Program finished in {runtime.tick} ticks.[/]")
+            if debugger_server:
+                debugger_server.send_data_to_client(json.dumps({
+                    "ID": f"program_end_{runtime.tick}",
+                    "name": "program_end",
+                    "data": "Program finished"
+                }, indent=4))
 
         runtime.register_event("program_end", on_program_end_hook)
         runtime.register_event("memory_address", lambda msg: console.log(f"[dim cyan]{msg}[/]"))
 
         if args.debug:
-            with Status("Setup Debuger") as status:
-                runtime.register_event("tick", on_tick_hook)
-                
-                runtime.register_event("debug.instruction", lambda msg: console.log(f"[dim blue]{msg}[/]"))
-                runtime.register_event("debug.pointer", lambda msg: console.log(f"[dim yellow]{msg}[/]"))
-                runtime.register_event("debug.memory", lambda msg: console.log(f"[dim green]{msg}[/]"))
-                runtime.register_event("debug.jump", lambda msg: console.log(f"[dim purple]{msg}[/]"))
-                runtime.register_event("debug.render", lambda msg: console.log(f"[dim cyan]{msg}[/]"))
-                runtime.register_event("debug.input", lambda msg: console.log(f"[dim magenta]{msg}[/]"))
-                runtime.register_event("debug.error", lambda msg: console.log(f"[bold red]{msg}[/]"))
+            def data_format(name, data):
+                return json.dumps({
+                    "ID": f"{name}_{runtime.tick}",
+                    "name": name,
+                    "data": data
+                }, indent=4)
 
-                time.sleep(0) # but why
-                console.print("Successfully setup debug")
+            with Status("Setting up Debugger...", console=console, spinner="material"):
+                runtime.register_event("tick", on_tick_hook)
+                # runtime.register_event("debug.instruction", lambda msg: debugger_server.send_data_to_client(data_format("instruction", msg)))
+                # runtime.register_event("debug.pointer", lambda msg: debugger_server.send_data_to_client(data_format("pointer", msg)))
+                # runtime.register_event("debug.memory", lambda msg: debugger_server.send_data_to_client(data_format("memory", msg)))
+                # runtime.register_event("debug.jump", lambda msg: debugger_server.send_data_to_client(data_format("jump", msg)))
+                # runtime.register_event("debug.render", lambda msg: debugger_server.send_data_to_client(data_format("render", msg)))
+                # runtime.register_event("debug.input", lambda msg: debugger_server.send_data_to_client(data_format("input", msg)))
+                console.print("[green]🐛 Debugger fully initialized[/]")
+                if debugger_server:
+                    if not debugger_server.wait_for_client(timeout=10):
+                        console.print("[bold red]❌ Debugger client did not connect in time. Exiting.[/]")
+                        return
 
         console.print("[green]" + "="*80 + "[/]")
 
@@ -235,9 +232,8 @@ def main():
         running = True
         while running:
             if PROGRAM_END:
-                running = False
                 break
-            
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -245,12 +241,24 @@ def main():
             runtime.emit_event("tick")
             runtime.run_program_threaded(screen, color=color)
 
-            runtime.draw_fps(screen, clock) if args.showfps else None
+            if args.showfps:
+                runtime.draw_fps(screen, clock)
 
             runtime.graphic_engine.update()
             clock.tick(60)
 
         pygame.quit()
+        sys.exit(0)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        console.print("\n[bold yellow]👋 Program interrupted by user. Exiting gracefully.[/]\n")
+    except Exception as e:
+        console.print(Panel(str(e), title="💥 An unexpected error occurred", style="red"))
+    finally:
+        if debugger_server:
+            debugger_server.stop()
+        pygame.quit()
+        sys.exit(1)
